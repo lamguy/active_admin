@@ -9,7 +9,12 @@ Feature: Edit Page
     And I am logged in
     Given a configuration of:
     """
-      ActiveAdmin.register Post
+      ActiveAdmin.register Post do
+        if Rails::VERSION::MAJOR == 4
+          permit_params :custom_category_id, :author_id, :title,
+            :body, :position, :published_at, :starred
+        end
+      end
     """
     When I am on the index page for posts
 
@@ -29,6 +34,8 @@ Feature: Edit Page
     Given a configuration of:
     """
       ActiveAdmin.register Post do
+        permit_params :category, :author, :title, :body, :published_at, :starred if Rails::VERSION::MAJOR == 4
+
         form do |f|
           f.inputs "Your Post" do
             f.input :title
@@ -56,6 +63,8 @@ Feature: Edit Page
     Given a configuration of:
     """
       ActiveAdmin.register Post do
+        permit_params :category, :author, :title, :body, :published_at, :starred if Rails::VERSION::MAJOR == 4
+
         form :html => {} do |f|
           f.inputs "Your Post" do
             f.input :title
@@ -93,6 +102,8 @@ Feature: Edit Page
     Given a configuration of:
     """
       ActiveAdmin.register Post do
+        permit_params :category, :author, :title, :body, :published_at, :starred if Rails::VERSION::MAJOR == 4
+
         form :partial => "form"
       end
     """

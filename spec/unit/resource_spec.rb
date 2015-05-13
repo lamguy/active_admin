@@ -1,11 +1,10 @@
-require 'spec_helper' 
+require 'rails_helper'
 require File.expand_path('config_shared_examples', File.dirname(__FILE__))
 
 module ActiveAdmin
   describe Resource do
 
-    it_should_behave_like "ActiveAdmin::Config"
-
+    it_should_behave_like "ActiveAdmin::Resource"
     before { load_defaults! }
 
     let(:application){ ActiveAdmin::Application.new }
@@ -19,27 +18,33 @@ module ActiveAdmin
 
     describe "#resource_table_name" do
       it "should return the resource's table name" do
-        config.resource_table_name.should == '"categories"'
+        expect(config.resource_table_name).to eq '"categories"'
       end
       context "when the :as option is given" do
         it "should return the resource's table name" do
-          config(:as => "My Category").resource_table_name.should == '"categories"'
+          expect(config(as: "My Category").resource_table_name).to eq '"categories"'
         end
+      end
+    end
+
+    describe "#resource_column_names" do
+      it "should return the resource's column names" do
+        expect(config.resource_column_names).to eq Category.column_names
       end
     end
 
     describe '#decorator_class' do
       it 'returns nil by default' do
-        config.decorator_class.should be_nil
+        expect(config.decorator_class).to be_nil
       end
       context 'when a decorator is defined' do
         let(:resource) { namespace.register(Post) { decorate_with PostDecorator } }
         specify '#decorator_class_name should return PostDecorator' do
-          resource.decorator_class_name.should == '::PostDecorator'
+          expect(resource.decorator_class_name).to eq '::PostDecorator'
         end
 
         it 'returns the decorator class' do
-          resource.decorator_class.should == PostDecorator
+          expect(resource.decorator_class).to eq PostDecorator
         end
       end
     end
@@ -47,12 +52,12 @@ module ActiveAdmin
 
     describe "controller name" do
       it "should return a namespaced controller name" do
-        config.controller_name.should == "Admin::CategoriesController"
+        expect(config.controller_name).to eq "Admin::CategoriesController"
       end
       context "when non namespaced controller" do
         let(:namespace){ ActiveAdmin::Namespace.new(application, :root) }
         it "should return a non namespaced controller name" do
-          config.controller_name.should == "CategoriesController"
+          expect(config.controller_name).to eq "CategoriesController"
         end
       end
     end
@@ -63,45 +68,29 @@ module ActiveAdmin
 
       context "when regular resource" do
         let(:resource){ namespace.register(Post) }
-        it { should be_include_in_menu }
+        it { is_expected.to be_include_in_menu }
       end
-      context "when belongs to" do
-        let(:resource){ namespace.register(Post){ belongs_to :author } }
-        it { should_not be_include_in_menu }
-      end
-      context "when belongs to optional" do
-        let(:resource){ namespace.register(Post){ belongs_to :author, :optional => true} }
-        it { should be_include_in_menu }
-      end
+
       context "when menu set to false" do
         let(:resource){ namespace.register(Post){ menu false } }
-        it { should_not be_include_in_menu }
+        it { is_expected.not_to be_include_in_menu }
       end
     end
 
-    describe "route names" do
-      it "should return the route prefix" do
-        config.route_prefix.should == "admin"
-      end
-      it "should return the route collection path" do
-        config.route_collection_path.should == :admin_categories_path
+    describe "#belongs_to" do
+
+      it "should build a belongs to configuration" do
+        expect(config.belongs_to_config).to be_nil
+        config.belongs_to :posts
+        expect(config.belongs_to_config).to_not be_nil
       end
 
-      context "when in the root namespace" do
-        let(:config){ application.register Category, :namespace => false}
-        it "should have a nil route_prefix" do
-          config.route_prefix.should == nil
-        end
+      it "should set the target menu to the belongs to target" do
+        expect(config.navigation_menu_name).to eq ActiveAdmin::DEFAULT_MENU
+        config.belongs_to :posts
+        expect(config.navigation_menu_name).to eq :posts
       end
 
-      context "when registering a plural resource" do
-        class ::News; def self.has_many(*); end end
-
-        let(:config){ application.register News }
-        it "should return the plurali route with _index" do
-          config.route_collection_path.should == :admin_news_index_path
-        end
-      end
     end
 
     describe "scoping" do
@@ -115,7 +104,7 @@ module ActiveAdmin
         end
         it "should call the proc for the begin of association chain" do
           begin_of_association_chain = @resource.controller.new.send(:begin_of_association_chain)
-          begin_of_association_chain.should == "scoped"
+          expect(begin_of_association_chain).to eq "scoped"
         end
       end
 
@@ -127,22 +116,9 @@ module ActiveAdmin
         end
         it "should call the method for the begin of association chain" do
           controller = @resource.controller.new
-          controller.should_receive(:current_user).and_return(true)
+          expect(controller).to receive(:current_user).and_return(true)
           begin_of_association_chain = controller.send(:begin_of_association_chain)
-          begin_of_association_chain.should == true
-        end
-      end
-
-      context "when not using a block or symbol" do
-        before do
-          @resource = application.register Category do
-            scope_to "Some string"
-          end
-        end
-        it "should raise and exception" do
-          lambda {
-            @resource.controller.new.send(:begin_of_association_chain)
-          }.should raise_error(ArgumentError)
+          expect(begin_of_association_chain).to eq true
         end
       end
 
@@ -154,17 +130,17 @@ module ActiveAdmin
             end
           end
           it "should return the pluralized collection name" do
-            @resource.controller.new.send(:method_for_association_chain).should == :categories
+            expect(@resource.controller.new.send(:method_for_association_chain)).to eq :categories
           end
         end
         context "when passing in the method as an option" do
           before do
             @resource = application.register Category do
-              scope_to :current_user, :association_method => :blog_categories
+              scope_to :current_user, association_method: :blog_categories
             end
           end
           it "should return the method from the option" do
-            @resource.controller.new.send(:method_for_association_chain).should == :blog_categories
+            expect(@resource.controller.new.send(:method_for_association_chain)).to eq :blog_categories
           end
         end
       end
@@ -175,22 +151,22 @@ module ActiveAdmin
 
       context "when resource class responds to primary_key" do
         it "should sort by primary key desc by default" do
-          MockResource.should_receive(:primary_key).and_return("pk")
+          expect(MockResource).to receive(:primary_key).and_return("pk")
           config = Resource.new(namespace, MockResource)
-          config.sort_order.should == "pk_desc"
+          expect(config.sort_order).to eq "pk_desc"
         end
       end
 
       context "when resource class does not respond to primary_key" do
         it "should default to id" do
           config = Resource.new(namespace, MockResource)
-          config.sort_order.should == "id_desc"
+          expect(config.sort_order).to eq "id_desc"
         end
       end
 
       it "should be set-able" do
         config.sort_order = "task_id_desc"
-        config.sort_order.should == "task_id_desc"
+        expect(config.sort_order).to eq "task_id_desc"
       end
 
     end
@@ -199,20 +175,27 @@ module ActiveAdmin
 
       it "should add a scope" do
         config.scope :published
-        config.scopes.first.should be_a(ActiveAdmin::Scope)
-        config.scopes.first.name.should == "Published"
+        expect(config.scopes.first).to be_a(ActiveAdmin::Scope)
+        expect(config.scopes.first.name).to eq "Published"
       end
 
       it "should retrive a scope by its id" do
         config.scope :published
-        config.get_scope_by_id(:published).name.should == "Published"
+        expect(config.get_scope_by_id(:published).name).to eq "Published"
       end
+
+      it "should retrieve the default scope by proc" do
+        config.scope :published, default: proc{ true }
+        config.scope :all
+        expect(config.default_scope.name).to eq "Published"
+      end
+
     end
 
     describe "#csv_builder" do
       context "when no csv builder set" do
         it "should return a default column builder with id and content columns" do
-          config.csv_builder.columns.size.should == Category.content_columns.size + 1
+          expect(config.csv_builder.exec_columns.size).to eq Category.content_columns.size + 1
         end
       end
 
@@ -220,7 +203,115 @@ module ActiveAdmin
         it "shuld return the csv_builder we set" do
           csv_builder = CSVBuilder.new
           config.csv_builder = csv_builder
-          config.csv_builder.should == csv_builder
+          expect(config.csv_builder).to eq csv_builder
+        end
+      end
+    end
+
+    describe "#breadcrumb" do
+      subject { config.breadcrumb }
+
+      context "when no breadcrumb is set" do
+        it { is_expected.to eq(namespace.breadcrumb) }
+      end
+
+      context "when breadcrumb is set" do
+        context "when set to true" do
+          before { config.breadcrumb = true }
+          it { is_expected.to be_truthy }
+        end
+
+        context "when set to false" do
+          before { config.breadcrumb = false }
+          it { is_expected.to be_falsey }
+        end
+      end
+    end
+
+    describe '#find_resource' do
+      let(:resource) { namespace.register(Post) }
+      let(:post) { double }
+      before do
+        allow(Post).to receive(:find_by_id).with('12345') { post }
+      end
+
+      it 'can find the resource' do
+        expect(resource.find_resource('12345')).to eq post
+      end
+
+      context 'with a decorator' do
+        let(:resource) { namespace.register(Post) { decorate_with PostDecorator } }
+        it 'decorates the resource' do
+          expect(resource.find_resource('12345')).to eq PostDecorator.new(post)
+        end
+      end
+
+      context 'when using a nonstandard primary key' do
+        let(:different_post) { double }
+        before do
+          allow(Post).to receive(:primary_key).and_return 'something_else'
+          allow(Post).to receive(:find_by_something_else).with('55555') { different_post }
+        end
+
+        it 'can find the post by the custom primary key' do
+          expect(resource.find_resource('55555')).to eq different_post
+        end
+      end
+
+      context 'when using controller finder' do
+        let(:resource) do
+          namespace.register(Post) do
+            controller do
+              defaults finder: :find_by_title!
+            end
+          end
+        end
+
+        it 'can find the post by controller finder' do
+          allow(Post).to receive(:find_by_title!).with('title-name').and_return(post)
+
+          expect(resource.find_resource('title-name')).to eq post
+        end
+      end
+    end
+
+    describe "delegation" do
+      let(:controller) {
+        Class.new do
+          def method_missing(name, *args, &block)
+            "called #{name}"
+          end
+        end.new
+      }
+      let(:resource) { ActiveAdmin::ResourceDSL.new(double, double) }
+
+      before do
+        expect(resource).to receive(:controller).and_return(controller)
+      end
+
+      context "filters" do
+        [
+          :before_filter, :skip_before_filter,
+          :after_filter, :skip_after_filter,
+          :around_filter, :skip_filter
+        ].each do |filter|
+          it "delegates #{filter}" do
+            expect(resource.send(filter)).to eq "called #{filter}"
+          end
+        end
+      end
+
+      if Rails::VERSION::MAJOR == 4
+        context "actions" do
+          [
+            :before_action, :skip_before_action,
+            :after_action, :skip_after_action,
+            :around_action, :skip_action
+          ].each do |action|
+            it "delegates #{action}" do
+              expect(resource.send(action)).to eq "called #{action}"
+            end
+          end
         end
       end
     end

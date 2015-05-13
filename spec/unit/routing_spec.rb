@@ -1,72 +1,26 @@
 # encoding: utf-8
 
-require 'spec_helper'
+require 'rails_helper'
 
-describe ActiveAdmin, "Routing", :type => :routing do
+describe ActiveAdmin, "Routing", type: :routing do
 
   before do
     load_defaults!
     reload_routes!
   end
 
-  include Rails.application.routes.url_helpers
+  it "should only have the namespaces necessary for route testing" do
+    expect(ActiveAdmin.application.namespaces.names).to eq [:admin, :root]
+  end
 
-  describe "root" do
-    before do
-      pending "Y U NO PASS?"
-    end
-    context "when default configuration" do
-      context "when in admin namespace" do
-        it "should route the admin dashboard" do
-          get('/admin').should route_to('admin/dashboard#index')
-        end
-      end
+  it "should route to the admin dashboard" do
+    expect(get('/admin')).to route_to 'admin/dashboard#index'
+  end
 
-      context "when in root namespace" do
-        before(:each) do
-          load_resources { ActiveAdmin.register(Post, :namespace => false) }
-          reload_routes!
-        end
-
-        it "should route the root dashboard" do
-          pending "Y U NO PASS?"
-
-          get('/').should route_to('dashboard#index')
-        end
-      end
-    end
-
-    context "when customized configuration to root to post#index" do
-      before do
-        @original_root = ActiveAdmin.application.root_to
-        ActiveAdmin.application.root_to = "posts#index"
-      end
-
-      after do
-        ActiveAdmin.application.root_to = @original_root
-        reload_routes!
-      end
-
-      context "when in admin namespace" do
-        before do
-          load_resources { ActiveAdmin.register(Post) }
-        end
-
-        it "should route to admin/posts#index" do
-          get('/admin').should route_to('admin/posts#index')
-        end
-      end
-
-      context "when in root namespace" do
-        before do
-          load_resources { ActiveAdmin.register(Post, :namespace => false) }
-        end
-
-        it "should route to posts#index" do
-          pending "Y U NO PASS?"
-
-          get('/').should route_to('posts#index')
-        end
+  describe "root path helper" do
+    context "when in admin namespace" do
+      it "should be admin_root_path" do
+        expect(admin_root_path).to eq "/admin"
       end
     end
   end
@@ -74,67 +28,110 @@ describe ActiveAdmin, "Routing", :type => :routing do
   describe "standard resources" do
     context "when in admin namespace" do
       it "should route the index path" do
-        admin_posts_path.should == "/admin/posts"
+        expect(admin_posts_path).to eq "/admin/posts"
       end
 
       it "should route the show path" do
-        admin_post_path(1).should == "/admin/posts/1"
+        expect(admin_post_path(1)).to eq "/admin/posts/1"
       end
 
       it "should route the new path" do
-        new_admin_post_path.should == "/admin/posts/new"
+        expect(new_admin_post_path).to eq "/admin/posts/new"
       end
 
       it "should route the edit path" do
-        edit_admin_post_path(1).should == "/admin/posts/1/edit"
+        expect(edit_admin_post_path(1)).to eq "/admin/posts/1/edit"
       end
     end
 
     context "when in root namespace" do
       before(:each) do
-        load_resources { ActiveAdmin.register(Post, :namespace => false) }
+        load_resources { ActiveAdmin.register(Post, namespace: false) }
       end
 
       it "should route the index path" do
-        posts_path.should == "/posts"
+        expect(posts_path).to eq "/posts"
       end
 
       it "should route the show path" do
-        post_path(1).should == "/posts/1"
+        expect(post_path(1)).to eq "/posts/1"
       end
 
       it "should route the new path" do
-        new_post_path.should == "/posts/new"
+        expect(new_post_path).to eq "/posts/new"
       end
 
       it "should route the edit path" do
-        edit_post_path(1).should == "/posts/1/edit"
+        expect(edit_post_path(1)).to eq "/posts/1/edit"
+      end
+    end
+
+    context "with member action" do
+      context "without an http verb" do
+        before do
+          load_resources do
+            ActiveAdmin.register(Post){ member_action "do_something" }
+          end
+        end
+
+        it "should default to GET" do
+          expect({get: "/admin/posts/1/do_something"}).to      be_routable
+          expect({post: "/admin/posts/1/do_something"}).to_not be_routable
+        end
+      end
+
+      context "with one http verb" do
+        before do
+          load_resources do
+            ActiveAdmin.register(Post){ member_action "do_something", method: :post }
+          end
+        end
+
+        it "should properly route" do
+          expect({post: "/admin/posts/1/do_something"}).to be_routable
+        end
+      end
+
+      context "with two http verbs" do
+        before do
+          load_resources do
+            ActiveAdmin.register(Post){ member_action "do_something", method: [:put, :delete] }
+          end
+        end
+
+        it "should properly route the first verb" do
+          expect({put: "/admin/posts/1/do_something"}).to be_routable
+        end
+
+        it "should properly route the second verb" do
+          expect({delete: "/admin/posts/1/do_something"}).to be_routable
+        end
       end
     end
   end
 
   describe "belongs to resource" do
     it "should route the nested index path" do
-      admin_user_posts_path(1).should == "/admin/users/1/posts"
+      expect(admin_user_posts_path(1)).to eq "/admin/users/1/posts"
     end
 
     it "should route the nested show path" do
-      admin_user_post_path(1,2).should == "/admin/users/1/posts/2"
+      expect(admin_user_post_path(1,2)).to eq "/admin/users/1/posts/2"
     end
 
     it "should route the nested new path" do
-      new_admin_user_post_path(1).should == "/admin/users/1/posts/new"
+      expect(new_admin_user_post_path(1)).to eq "/admin/users/1/posts/new"
     end
 
     it "should route the nested edit path" do
-      edit_admin_user_post_path(1,2).should == "/admin/users/1/posts/2/edit"
+      expect(edit_admin_user_post_path(1,2)).to eq "/admin/users/1/posts/2/edit"
     end
 
     context "with collection action" do
       before do
         load_resources do
           ActiveAdmin.register(Post) do
-            belongs_to :user, :optional => true
+            belongs_to :user, optional: true
           end
           ActiveAdmin.register(User) do
             collection_action "do_something"
@@ -143,8 +140,8 @@ describe ActiveAdmin, "Routing", :type => :routing do
       end
 
       it "should properly route the collection action" do
-        { :get => "/admin/users/do_something" }.
-          should route_to({ :controller => 'admin/users',:action => 'do_something'})
+        expect({ get: "/admin/users/do_something" }).to \
+          route_to({ controller: 'admin/users', action: 'do_something'})
       end
     end
   end
@@ -156,16 +153,16 @@ describe ActiveAdmin, "Routing", :type => :routing do
       end
 
       it "should route to the page under /admin" do
-        admin_chocolate_i_love_you_path.should == "/admin/chocolate_i_love_you"
+        expect(admin_chocolate_i_love_you_path).to eq "/admin/chocolate_i_love_you"
       end
 
       context "when in the root namespace" do
         before(:each) do
-          load_resources { ActiveAdmin.register_page("Chocolate I lØve You!", :namespace => false) }
+          load_resources { ActiveAdmin.register_page("Chocolate I lØve You!", namespace: false) }
         end
 
         it "should route to page under /" do
-          chocolate_i_love_you_path.should == "/chocolate_i_love_you"
+          expect(chocolate_i_love_you_path).to eq "/chocolate_i_love_you"
         end
       end
 
@@ -175,7 +172,7 @@ describe ActiveAdmin, "Routing", :type => :routing do
         end
 
         it "should not inject _index_ into the route name" do
-          admin_log_path.should == "/admin/log"
+          expect(admin_log_path).to eq "/admin/log"
         end
       end
     end

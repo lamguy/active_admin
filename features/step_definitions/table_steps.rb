@@ -1,3 +1,8 @@
+Then /^I should see (\d+) ([\w]*) in the table$/ do |count, resource_type|
+  expect(all("table.index_table tr > td:first").count).to eq count.to_i
+end
+
+# TODO: simplify this, if possible?
 class HtmlTableToTextHelper
   def initialize(html, table_css_selector = "table")
     @html = html
@@ -10,7 +15,7 @@ class HtmlTableToTextHelper
       row.css('th, td').map do |td|
         cell_to_string(td)
       end
-    end 
+    end
   end
 
   private
@@ -86,9 +91,9 @@ module TableMatchHelper
 
   def assert_cells_match(cell, expected_cell)
     if expected_cell =~ /^\/.*\/$/
-      cell.should match(Regexp.new(expected_cell[1..-2]))
+      expect(cell).to match /#{expected_cell[1..-2]}/
     else
-      (cell || "").strip.should == expected_cell
+      expect((cell || "").strip).to eq expected_cell
     end
   end
 
@@ -105,7 +110,7 @@ World(TableMatchHelper)
 #     |    /\d+/     | 12/02/12 |       $25.00 |
 #
 Then /^I should see the "([^"]*)" table:$/ do |table_id, expected_table|
-  page.should have_css("table##{table_id}")
+  expect(page).to have_css "table##{table_id}"
 
   assert_tables_match(
     HtmlTableToTextHelper.new(page.body, "table##{table_id}").to_array,

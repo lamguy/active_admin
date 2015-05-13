@@ -1,84 +1,96 @@
 # Custom Pages
 
-Although it's nice to be able to register resources, sometimes you need a non
-resourceful page in your application. Active Admin supports the generation of
-custom pages using the same familiar syntax available for resources.
+If you have data you want on a standalone page that isn't tied to a resource,
+custom pages provide you with a familiar syntax and feature set:
+
+* a menu item
+* sidebars
+* action items
+* page actions
 
 ## Create a new Page
 
-Creating a page is a simple as calling the `register_page` method:
+Creating a page is as simple as calling `register_page`:
 
-    ActiveAdmin.register_page "My Page" do
-      content do
-        para "Hello World"
-      end
+```ruby
+# app/admin/calendar.rb
+ActiveAdmin.register_page "Calendar" do
+  content do
+    para "Hello World"
+  end
+end
+```
+
+Anything rendered within `content` will be the main content on the page.
+Partials behave exactly the same way as they do for resources:
+
+```ruby
+# app/admin/calendar.rb
+ActiveAdmin.register_page "Calendar" do
+  content do
+    render partial: 'calendar'
+  end
+end
+
+# app/views/admin/calendar/_calendar.html.arb
+table do
+  thead do
+    tr do
+      %w[Sunday Monday Tuesday Wednesday Thursday Friday Saturday].each &method(:th)
     end
-
-In the above example, a new page will be created at `/admin/my_page` with the
-title "My Page" and the content of "Hello World". Anything rendered within the
-`#content` block will be set in the main content area of the page.
-
-## Page Title & I18n
-
-Coming soon...
+  end
+  tbody do
+    # ...
+  end
+end
+```
 
 ## Customize the Menu
 
-The menu item is available to customize just like in any other resource in
-Active Admin:
+See the [Menu](2-resource-customization.md#customize-the-menu) documentation.
 
-    ActiveAdmin.register_page "My Page" do
-      menu :label => "My Menu Item Label", :parent => "Dashboard"
+## Customize the Namespace
 
-      content do
-        para "Hello World"
-      end
-    end
+We use the `admin` namespace by default, but you can use anything:
 
-This configuration will add the page to the menu with the label "My Menu Item
-Label" and will nest it underneath the "Dashboard" link.
+```ruby
+# Available at /today/calendar
+ActiveAdmin.register_page "Calendar", namespace: :today
 
-To view the full list of available menu options visit ([Resource
-Customization](2-resource-customization.md))
+# Available at /calendar
+ActiveAdmin.register_page "Calendar", namespace: false
+```
 
-## Add a Sidebar Section
+## Add a Sidebar
 
-You can add sidebar sections to your pages using the same DSL as other resources
-in Active Admin:
-
-    ActiveAdmin.register_page "My Page" do
-
-      sidebar :help do
-        ul do
-          li "First Line of Help"
-        end
-      end
-
-      content do
-        para "Hello World"
-      end
-    end
-
-This configuration creates a sidebar section named "Help" with an unordered list
-in it. 
-
-To view the full list of available sidebar section options visit
-([Sidebars](7-sidebars.md))
+See the [Sidebars](7-sidebars.md) documentation.
 
 ## Add an Action Item
 
-Just like other resources, you can add Action Item's to pages:
+Just like other resources, you can add action items. The difference here being that
+`:only` and `:except` don't apply because there's only one page it could apply to.
 
-    ActiveAdmin.register_page "My Page" do
+```ruby
+action_item :view_site do
+  link_to "View Site", "/"
+end
+```
 
-      action_item do
-        link_to "View Site", "/"
-      end
+## Add a Page Action
 
-      content do
-        para "Hello World"
-      end
-    end
+Page actions are custom controller actions (which mirror the resource DSL for the same feature).
 
-This configuration adds an action item that links to the root URL of the
-application.
+```ruby
+page_action :add_event, method: :post do
+  # ...
+  redirect_to admin_calendar_path, notice: "Your event was added"
+end
+
+action_item :add do
+  link_to "Add Event", admin_calendar_add_event_path, method: :post
+end
+```
+
+This defines the route `/admin/calendar/add_event` which can handle HTTP POST requests.
+
+Clicking on the action item will reload page and display the message "Your event was added"

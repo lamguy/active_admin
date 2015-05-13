@@ -1,47 +1,61 @@
 module ActiveAdmin
-  # This is the class where all the register blocks are instance eval'd
+  # This is the class where all the register blocks are evaluated.
   class ResourceDSL < DSL
+    def initialize(config, resource_class)
+      @resource = resource_class
+      super(config)
+    end
+
     private
 
     def belongs_to(target, options = {})
       config.belongs_to(target, options)
     end
 
-    # Scope this controller to some object which has a relation
-    # to the resource. Can either accept a block or a symbol 
-    # of a method to call.
-    #
-    # Eg:
-    #
-    #   ActiveAdmin.register Post do
-    #     scope_to :current_user
-    #   end
-    #
-    # Then every time we instantiate and object, it would call
-    #   
-    #   current_user.posts.build
-    #
-    # By default Active Admin will use the resource name to build a
-    # method to call as the association. If its different, you can 
-    # pass in the association_method as an option.
-    #
-    #   scope_to :current_user, :association_method => :blog_posts
-    #
-    # will result in the following
-    # 
-    #   current_user.blog_posts.build
-    #
+    # Scope collection to a relation
     def scope_to(*args, &block)
-      options = args.extract_options!
-      method = args.first
-
-      config.scope_to = block_given? ? block : method
-      config.scope_to_association_method = options[:association_method]
+      config.scope_to(*args, &block)
     end
 
     # Create a scope
     def scope(*args, &block)
       config.scope(*args, &block)
+    end
+
+    # Store relations that should be included
+    def includes(*args)
+      config.includes.push *args
+    end
+
+    #
+    # Rails 4 Strong Parameters Support
+    #
+    # Either
+    #
+    #   permit_params :title, :author, :body, tags: []
+    #
+    # Or
+    #
+    #   permit_params do
+    #     defaults = [:title, :body]
+    #     if current_user.admin?
+    #       defaults + [:author]
+    #     else
+    #       defaults
+    #     end
+    #   end
+    #
+    # Keys included in the `permitted_params` setting are automatically whitelisted.
+    #
+    def permit_params(*args, &block)
+      param_key = config.param_key.to_sym
+
+      controller do
+        define_method :permitted_params do
+          params.permit *active_admin_namespace.permitted_params,
+            param_key => block ? instance_exec(&block) : args
+        end
+      end
     end
 
     # Configure the index page for the resource
@@ -68,11 +82,13 @@ module ActiveAdmin
     #     column("Author") { |post| post.author.full_name }
     #   end
     #
-    #   csv :separator => ";" do
+    #   csv col_sep: ";", force_quotes: true do
     #     column :name
     #   end
     #
     def csv(options={}, &block)
+      options[:resource] = @resource
+
       config.csv_builder = CSVBuilder.new(options, &block)
     end
 
@@ -94,25 +110,23 @@ module ActiveAdmin
     #
     # You can treat everything within the block as a standard Rails controller
     # action.
-    # 
-    def member_action(name, options = {}, &block)
-      config.member_actions << ControllerAction.new(name, options)
+    #
+    def action(set, name, options = {}, &block)
+      set << ControllerAction.new(name, options)
       title = options.delete(:title)
 
       controller do
-        before_filter(:only => [name]) { @page_title = title } if title
+        before_filter(only: [name]) { @page_title = title } if title
         define_method(name, &block || Proc.new{})
       end
     end
 
-    def collection_action(name, options = {}, &block)
-      config.collection_actions << ControllerAction.new(name, options)
-      title = options.delete(:title)
+    def member_action(name, options = {}, &block)
+      action config.member_actions, name, options, &block
+    end
 
-      controller do
-        before_filter(:only => [name]){ @page_title = title } if title
-        define_method(name, &block || Proc.new{})
-      end
+    def collection_action(name, options = {}, &block)
+      action config.collection_actions, name, options, &block
     end
 
     # Defined Callbacks
@@ -139,25 +153,32 @@ module ActiveAdmin
     # == Before / After Destroy
     # Called before and after the object is destroyed from the database.
     #
-    delegate :before_build,   :after_build,   :to => :controller
-    delegate :before_create,  :after_create,  :to => :controller
-    delegate :before_update,  :after_update,  :to => :controller
-    delegate :before_save,    :after_save,    :to => :controller
-    delegate :before_destroy, :after_destroy, :to => :controller
+    delegate :before_build,   :after_build,   to: :controller
+    delegate :before_create,  :after_create,  to: :controller
+    delegate :before_update,  :after_update,  to: :controller
+    delegate :before_save,    :after_save,    to: :controller
+    delegate :before_destroy, :after_destroy, to: :controller
 
     # Standard rails filters
-    delegate :before_filter, :skip_before_filter, :after_filter, :around_filter, :to => :controller
+    delegate :before_filter,  :skip_before_filter, to: :controller
+    delegate :after_filter,   :skip_after_filter,  to: :controller
+    delegate :around_filter,  :skip_filter,        to: :controller
+    if Rails::VERSION::MAJOR == 4
+      delegate :before_action,  :skip_before_action, to: :controller
+      delegate :after_action,   :skip_after_action,  to: :controller
+      delegate :around_action,  :skip_action,        to: :controller
+    end
 
     # Specify which actions to create in the controller
     #
     # Eg:
-    #   
+    #
     #   ActiveAdmin.register Post do
     #     actions :index, :show
     #   end
     #
     # Will only create the index and show actions (no create, update or delete)
-    delegate :actions, :to => :controller
+    delegate :actions, to: :controller
 
   end
 end

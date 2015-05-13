@@ -1,178 +1,140 @@
+# Provides an intuitive way to build has_many associated records in the same form.
+module Formtastic
+  module Inputs
+    module Base
+      def input_wrapping(&block)
+        html = super
+        template.concat(html) if template.output_buffer && template.assigns[:has_many_block]
+        html
+      end
+    end
+  end
+end
+
 module ActiveAdmin
   class FormBuilder < ::Formtastic::FormBuilder
+    self.input_namespaces = [::Object, ::ActiveAdmin::Inputs, ::Formtastic::Inputs]
 
-    attr_reader :form_buffers
+    # TODO: remove both class finders after formtastic 4 (where it will be default)
+    self.input_class_finder = ::Formtastic::InputClassFinder
+    self.action_class_finder = ::Formtastic::ActionClassFinder
 
-    def initialize(*args)
-      @form_buffers = ["".html_safe]
-      super
+    def cancel_link(url = {action: "index"}, html_options = {}, li_attrs = {})
+      li_attrs[:class] ||= "cancel"
+      li_content = template.link_to I18n.t('active_admin.cancel'), url, html_options
+      template.content_tag(:li, li_content, li_attrs)
     end
 
-    def inputs(*args, &block)
-      # Store that we are creating inputs without a block
-      @inputs_with_block = block_given? ? true : false
-      content = with_new_form_buffer { super }
-      form_buffers.last << content.html_safe
+    attr_accessor :already_in_an_inputs_block
+
+    def assoc_heading(assoc)
+      object.class.reflect_on_association(assoc).klass.model_name.
+        human(count: ::ActiveAdmin::Helpers::I18n::PLURAL_MANY_COUNT)
     end
 
-    # The input method returns a properly formatted string for
-    # its contents, so we want to skip the internal buffering
-    # while building up its contents
-    def input(method, *args)
-      content = with_new_form_buffer { super }
-      return content.html_safe unless @inputs_with_block
-      form_buffers.last << content.html_safe
-    end
+    def has_many(assoc, options = {}, &block)
+      # remove options that should not render as attributes
+      custom_settings = :new_record, :allow_destroy, :heading, :sortable, :sortable_start
+      builder_options = {new_record: true}.merge! options.slice  *custom_settings
+      options         = {for: assoc      }.merge! options.except *custom_settings
+      options[:class] = [options[:class], "inputs has_many_fields"].compact.join(' ')
+      sortable_column = builder_options[:sortable]
+      sortable_start  = builder_options.fetch(:sortable_start, 0)
 
-    def cancel_link(url = nil, html_options = {}, li_attributes = {})
-      li_attributes[:class] ||= "cancel"
-      url ||= {:action => "index"}
-      form_buffers.last << template.content_tag(:li, (template.link_to I18n.t('active_admin.cancel'), url, html_options), li_attributes)
-    end
-
-    def actions(*args, &block)
-      content = with_new_form_buffer do
-        block_given? ? super : super { commit_action_with_cancel_link }
+      if sortable_column
+        options[:for] = [assoc, sorted_children(assoc, sortable_column)]
       end
-      form_buffers.last << content.html_safe
-    end
 
-    def action(*args)
-      content = with_new_form_buffer { super }
-      form_buffers.last << content.html_safe
-    end
+      html = "".html_safe
+      unless builder_options.key?(:heading) && !builder_options[:heading]
+        html << template.content_tag(:h3) do
+          builder_options[:heading] || assoc_heading(assoc)
+        end
+      end
 
-    def commit_action_with_cancel_link
-      action(:submit)
-      cancel_link
-    end
+      html << template.capture do
+        contents = "".html_safe
+        form_block = proc do |has_many_form|
+          index    = parent_child_index options[:parent] if options[:parent]
+          block.call has_many_form, index
+          template.concat has_many_actions(has_many_form, builder_options, "".html_safe)
+        end
+        
+        template.assign(has_many_block: true)
+        contents = without_wrapper { inputs(options, &form_block) }
 
-    def has_many(association, options = {}, &block)
-      options = { :for => association }.merge(options)
-      options[:class] ||= ""
-      options[:class] << "inputs has_many_fields"
-
-      # Add Delete Links
-      form_block = proc do |has_many_form|
-        # @see https://github.com/justinfrench/formtastic/blob/2.2.1/lib/formtastic/helpers/inputs_helper.rb#L373
-        contents = if block.arity == 1  # for backwards compatibility with REE & Ruby 1.8.x
-          block.call(has_many_form)
+        if builder_options[:new_record]
+          contents << js_for_has_many(assoc, form_block, template, builder_options[:new_record], options[:class])
         else
-          index = parent_child_index(options[:parent]) if options[:parent]
-          block.call(has_many_form, index)
-        end
-
-        if has_many_form.object.new_record?
-          contents += template.content_tag(:li) do
-            template.link_to I18n.t('active_admin.has_many_delete'), "#", :onclick => "$(this).closest('.has_many_fields').remove(); return false;", :class => "button"
-          end
-        end
-
-        contents
-      end
-
-      content = with_new_form_buffer do
-        template.content_tag :div, :class => "has_many #{association}" do
-          form_buffers.last << template.content_tag(:h3, object.class.reflect_on_association(association).klass.model_name.human(:count => 1.1))
-          inputs options, &form_block
-
-          # Capture the ADD JS
-          js = with_new_form_buffer do
-            inputs_for_nested_attributes  :for => [association, object.class.reflect_on_association(association).klass.new],
-                                          :class => "inputs has_many_fields",
-                                          :for_options => {
-                                            :child_index => "NEW_RECORD"
-                                          }, &form_block
-          end
-
-          js = template.escape_javascript(js)
-          js = template.link_to I18n.t('active_admin.has_many_new', :model => object.class.reflect_on_association(association).klass.model_name.human), "#", :onclick => "$(this).before('#{js}'.replace(/NEW_RECORD/g, new Date().getTime())); return false;", :class => "button"
-
-          form_buffers.last << js.html_safe
+          contents
         end
       end
-      form_buffers.last << content.html_safe
+
+      tag = @already_in_an_inputs_block ? :li : :div
+      html = template.content_tag(tag, html, class: "has_many_container #{assoc}", 'data-sortable' => sortable_column, 'data-sortable-start' => sortable_start)
+      template.concat(html) if template.output_buffer
+      html
     end
-
-    # These methods are deprecated and removed from Formtastic, however are
-    # supported here to help with transition.
-    module DeprecatedMethods
-
-      # Formtastic has depreciated #commit_button in favor of #action(:submit)
-      def commit_button(*args)
-        ::ActiveSupport::Deprecation.warn("f.commit_button is deprecated in favour of f.action(:submit)")
-
-        options = args.extract_options!
-        if String === args.first
-          options[:label] = args.first unless options.has_key?(:label)
-        end
-
-        action(:submit, options)
-      end
-
-      def commit_button_with_cancel_link
-        # Formtastic has depreciated #buttons in favor of #actions
-        ::ActiveSupport::Deprecation.warn("f.commit_button_with_cancel_link is deprecated in favour of f.commit_action_with_cancel_link")
-
-        commit_action_with_cancel_link
-      end
-
-      # The buttons method always needs to be wrapped in a new buffer
-      def buttons(*args, &block)
-        # Formtastic has depreciated #buttons in favor of #actions
-        ::ActiveSupport::Deprecation.warn("f.buttons is deprecated in favour of f.actions")
-
-        actions args, &block
-      end
-
-    end
-    include DeprecatedMethods
 
     protected
 
-    def active_admin_input_class_name(as)
-      "ActiveAdmin::Inputs::#{as.to_s.camelize}Input"
-    end
-
-    # prevent exceptions in production environment for better performance
-    def input_class_with_const_defined(as)
-      input_class_name = custom_input_class_name(as)
-
-      if ::Object.const_defined?(input_class_name)
-        input_class_name.constantize
-      elsif ActiveAdmin::Inputs.const_defined?(input_class_name)
-        active_admin_input_class_name(as).constantize 
-      elsif Formtastic::Inputs.const_defined?(input_class_name)
-        standard_input_class_name(as).constantize 
-      else
-        raise Formtastic::UnknownInputError
+    def has_many_actions(has_many_form, builder_options, contents)
+      if has_many_form.object.new_record?
+        contents << template.content_tag(:li) do
+          template.link_to I18n.t('active_admin.has_many_remove'), "#", class: 'button has_many_remove'
+        end
+      elsif builder_options[:allow_destroy]
+        has_many_form.input(:_destroy, as: :boolean,
+                            wrapper_html: {class: 'has_many_delete'},
+                            label: I18n.t('active_admin.has_many_delete'))
       end
-    end
 
-    # use auto-loading in development environment
-    def input_class_by_trying(as)
-      begin
-        begin
-          custom_input_class_name(as).constantize
-        rescue NameError
-          begin
-            active_admin_input_class_name(as).constantize
-          rescue NameError
-            standard_input_class_name(as).constantize
-          end
+      if builder_options[:sortable]
+        has_many_form.input builder_options[:sortable], as: :hidden
+
+        contents << template.content_tag(:li, class: 'handle') do
+          "MOVE"
         end
       end
-    rescue NameError
-      raise Formtastic::UnknownInputError
+
+      contents
+    end
+
+    def sorted_children(assoc, column)
+      object.public_send(assoc).sort_by do |o|
+        attribute = o.public_send column
+        [attribute.nil? ? Float::INFINITY : attribute, o.id || Float::INFINITY]
+      end
     end
 
     private
 
-    def with_new_form_buffer
-      form_buffers << "".html_safe
-      return_value = yield
-      form_buffers.pop
-      return_value
+    def without_wrapper
+      is_being_wrapped = @already_in_an_inputs_block
+      @already_in_an_inputs_block = false
+
+      html = yield
+
+      @already_in_an_inputs_block = is_being_wrapped
+      html
+    end
+
+    # Capture the ADD JS
+    def js_for_has_many(assoc, form_block, template, new_record, class_string)
+      assoc_reflection = object.class.reflect_on_association assoc
+      assoc_name       = assoc_reflection.klass.model_name
+      placeholder      = "NEW_#{assoc_name.to_s.underscore.upcase.gsub(/\//, '_')}_RECORD"
+      opts = {
+        for: [assoc, assoc_reflection.klass.new],
+        class: class_string,
+        for_options: { child_index: placeholder }
+      }
+      html = template.capture{ inputs_for_nested_attributes opts, &form_block }
+      text = new_record.is_a?(String) ? new_record : I18n.t('active_admin.has_many_new', model: assoc_name.human)
+
+      template.link_to text, '#', class: "button has_many_add", data: {
+        html: CGI.escapeHTML(html).html_safe, placeholder: placeholder
+      }
     end
 
   end

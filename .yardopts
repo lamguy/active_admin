@@ -1,8 +1,8 @@
-lib/**/*.rb 
+lib/**/*.rb
 --protected
 --no-private
---asset docs/images:images
+--exclude (features|lib\/generators\/active_admin\/.*\/templates)
 -
-README.rdoc 
+README.md
 CHANGELOG.md
 docs/**/*.md

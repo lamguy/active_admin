@@ -1,4 +1,4 @@
-require 'spec_helper'
+require 'rails_helper'
 require 'fileutils'
 
 describe ActiveAdmin::Application do
@@ -11,118 +11,145 @@ describe ActiveAdmin::Application do
   end
 
   it "should have a default load path of ['app/admin']" do
-    application.load_paths.should == [File.expand_path('app/admin', Rails.root)]
+    expect(application.load_paths).to eq [File.expand_path('app/admin', Rails.root)]
   end
 
-  it "should remove app/admin from the autoload path to remove the possibility of conflicts" do
-    ActiveSupport::Dependencies.autoload_paths.should_not include(File.join(Rails.root, "app/admin"))
-  end
-
-  it "should remove app/admin from the eager load paths (Active Admin deals with loading)" do
-    Rails.application.config.eager_load_paths.should_not include(File.join(Rails.root, "app/admin"))
+  it "should remove app/admin from the autoload paths (Active Admin deals with loading)" do
+    expect(ActiveSupport::Dependencies.autoload_paths).to_not include(File.join(Rails.root, "app/admin"))
   end
 
   it "should store the site's title" do
-    application.site_title.should == ""
+    expect(application.site_title).to eq ""
   end
 
   it "should set the site title" do
     application.site_title = "New Title"
-    application.site_title.should == "New Title"
+    expect(application.site_title).to eq "New Title"
   end
-  
+
   it "should store the site's title link" do
-    application.site_title_link.should == ""
+    expect(application.site_title_link).to eq ""
   end
 
   it "should set the site's title link" do
     application.site_title_link = "http://www.mygreatsite.com"
-    application.site_title_link.should == "http://www.mygreatsite.com"
+    expect(application.site_title_link).to eq "http://www.mygreatsite.com"
   end
-  
+
   it "should store the site's title image" do
-    application.site_title_image.should == ""
+    expect(application.site_title_image).to eq ""
   end
-  
+
   it "should set the site's title image" do
     application.site_title_image = "http://railscasts.com/assets/episodes/stills/284-active-admin.png?1316476106"
-    application.site_title_image.should == "http://railscasts.com/assets/episodes/stills/284-active-admin.png?1316476106"
+    expect(application.site_title_image).to eq "http://railscasts.com/assets/episodes/stills/284-active-admin.png?1316476106"
+  end
+
+  it "should store the site's favicon" do
+    expect(application.favicon).to eq false
+  end
+
+  it "should set the site's favicon" do
+    application.favicon = "/a/favicon.ico"
+    expect(application.favicon).to eq "/a/favicon.ico"
+  end
+
+  it "should store meta tags" do
+    expect(application.meta_tags).to eq({})
+  end
+
+  it "should set meta tags" do
+    application.meta_tags = { author: "My Company" }
+    expect(application.meta_tags).to eq(author: "My Company")
+  end
+
+  it "should contains robots meta tags by default" do
+    result = application.meta_tags_for_logged_out_pages
+    expect(result).to eq(robots: "noindex, nofollow")
+  end
+
+  it "should set meta tags for logged out pages" do
+    value = { author: "My Company" }
+    application.meta_tags_for_logged_out_pages = value
+    expect(application.meta_tags_for_logged_out_pages).to eq value
   end
 
   it "should have a view factory" do
-    application.view_factory.should be_an_instance_of(ActiveAdmin::ViewFactory)
-  end
-
-  it "should have deprecated admin notes by default" do 
-    application.admin_notes.should be_nil
+    expect(application.view_factory).to be_an_instance_of(ActiveAdmin::ViewFactory)
   end
 
   it "should allow comments by default" do
-    application.allow_comments.should == true
+    expect(application.comments).to eq true
   end
 
   describe "authentication settings" do
 
     it "should have no default current_user_method" do
-      application.current_user_method.should == false
+      expect(application.current_user_method).to eq false
     end
 
     it "should have no default authentication method" do
-      application.authentication_method.should == false
+      expect(application.authentication_method).to eq false
     end
 
     it "should have a logout link path (Devise's default)" do
-      application.logout_link_path.should == :destroy_admin_user_session_path
+      expect(application.logout_link_path).to eq :destroy_admin_user_session_path
     end
 
     it "should have a logout link method (Devise's default)" do
-      application.logout_link_method.should == :get
+      expect(application.logout_link_method).to eq :get
     end
   end
 
   describe "files in load path" do
     it "should load files in the first level directory" do
-      application.files_in_load_path.should include(File.expand_path("app/admin/dashboard.rb", Rails.root))
+      expect(application.files).to include(File.expand_path("app/admin/dashboard.rb", Rails.root))
     end
 
     it "should load files from subdirectories" do
       FileUtils.mkdir_p(File.expand_path("app/admin/public", Rails.root))
       test_file = File.expand_path("app/admin/public/posts.rb", Rails.root)
       FileUtils.touch(test_file)
-      application.files_in_load_path.should include(test_file)
+      expect(application.files).to include(test_file)
     end
   end
 
-  describe "#namespace (or #find_or_create_namespace)" do
+  describe "#namespace" do
 
     it "should yield a new namespace" do
       application.namespace :new_namespace do |ns|
-        ns.name.should == :new_namespace
+        expect(ns.name).to eq :new_namespace
       end
     end
 
     it "should return an instantiated namespace" do
-      admin = application.find_or_create_namespace :admin
-      admin.should == application.namespaces[:admin]
+      admin = application.namespace :admin
+      expect(admin).to eq application.namespaces[:admin]
     end
 
     it "should yield an existing namespace" do
       expect {
         application.namespace :admin do |ns|
-          ns.should == application.namespaces[:admin]
+          expect(ns).to eq application.namespaces[:admin]
           raise "found"
         end
       }.to raise_error("found")
+    end
+
+    it "should not pollute the global app" do
+      expect(application.namespaces).to be_empty
+      application.namespace(:brand_new_ns)
+      expect(application.namespaces.names).to eq [:brand_new_ns]
+      expect(ActiveAdmin.application.namespaces.names).to eq [:admin]
     end
   end
 
   describe "#register_page" do
     it "finds or create the namespace and register the page to it" do
-      namespace = mock
-      application.should_receive(:find_or_create_namespace).with("public").and_return namespace
-      namespace.should_receive(:register_page).with("My Page", {:namespace => "public"})
-
-      application.register_page("My Page", :namespace => "public")
+      namespace = double
+      expect(application).to receive(:namespace).with("public").and_return namespace
+      expect(namespace).to receive(:register_page).with("My Page", {namespace: "public"})
+      application.register_page("My Page", namespace: "public")
     end
   end
 

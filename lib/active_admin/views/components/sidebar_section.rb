@@ -4,10 +4,11 @@ module ActiveAdmin
     class SidebarSection < Panel
       builder_method :sidebar_section
 
-      # Takes a ActiveAdmin::Sidebar::Section instance
+      # Takes a ActiveAdmin::SidebarSection instance
       def build(section)
         @section = section
-        super(@section.title, :icon => @section.icon)
+        super(@section.title)
+        add_class @section.custom_class if @section.custom_class
         self.id = @section.id
         build_sidebar_content
       end
@@ -16,7 +17,7 @@ module ActiveAdmin
 
       def build_sidebar_content
         if @section.block
-          rvalue = instance_eval(&@section.block)
+          rvalue = instance_exec(&@section.block)
           self << rvalue if rvalue.is_a?(String)
         else
           render(@section.partial_name)

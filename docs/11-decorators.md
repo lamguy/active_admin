@@ -1,48 +1,55 @@
 # Decorators
 
-Active Admin supports the use of decorators for resources. Resources will be
-be decorated for the index and show blocks. The [draper](http://github.com/jcasimir/draper)
-gem is recommended but not required (more on requirements below).
+Active Admin allows you to use the decorator pattern to provide view-specific
+versions of a resource. [Draper](https://github.com/drapergem/draper) is
+recommended but not required.
 
-## Configuration
+To use decorator support without Draper, your decorator must support a variety
+of collection methods to support pagination, filtering, etc. See
+[this github issue discussion](https://github.com/activeadmin/activeadmin/issues/3600)
+and [this gem](https://github.com/kiote/activeadmin-poro-decorator) for more details.
 
-    ActiveAdmin.register Post do
-      decorate_with PostDecorator
-    end
+## Example usage
 
-## Example Usage
+```ruby
+# app/models/post.rb
+class Post < ActiveRecord::Base
+  # has title, content, and image_url
+end
 
-This example uses [draper](http://github.com/jcasimir/draper).
+# app/decorators/post_decorator.rb
+class PostDecorator < Draper::Decorator
+  delegate_all
 
-    # Gemfile
-    gem 'draper'
+  def image
+    h.image_tag model.image_url
+  end
+end
 
-Assuming a post and a post decorator
+# app/admin/post.rb
+ActiveAdmin.register Post do
+  decorate_with PostDecorator
 
-    class Post < ActiveRecord::Base; end
+  index do
+    column :title
+    column :image
+    actions
+  end
+end
+```
 
-    class PostDecorator < ApplicationDecorator
-      decorates :post
+## Forms
 
-      def image
-        h.image_tag model.image_url
-      end
-    end
+By default, ActiveAdmin does *not* decorate the resource used to render forms.
+If you need ActiveAdmin to decorate the forms, you can pass `decorate: true` to the
+form block.
 
-Then the following is possible
+```ruby
+ActiveAdmin.register Post do
+  decorate_with PostDecorator
 
-    ActiveAdmin.register Post do
-      decorate_with PostDecorator
-
-      index do
-        column(:title)
-        column(:image)
-      end
-
-      show do
-        attributes_table do
-          row(:title)
-          row(:image)
-        end
-      end
-    end
+  form decorate: true do |f|
+    # ...
+  end
+end
+```

@@ -1,46 +1,56 @@
-source 'http://rubygems.org'
+source 'https://rubygems.org'
 
 gemspec
 
-ACTIVE_ADMIN_PATH = File.dirname(__FILE__) unless defined?(ACTIVE_ADMIN_PATH)
-
-require File.expand_path('spec/support/detect_rails_version', ACTIVE_ADMIN_PATH)
+require File.expand_path 'spec/support/detect_rails_version', File.dirname(__FILE__)
 
 rails_version = detect_rails_version
-gem 'rails',          rails_version
-gem 'bourbon'
+gem 'rails', rails_version
 
-case rails_version
-when /^3\.0/
-  # Do nothing, bundler should figure it out
-when /^3\.(1|2)/
-  # These are the gems you have to have for Rails 3.1 to be happy
-  gem 'sass-rails'
-  gem 'uglifier'
-else
-  raise "Rails #{rails_version} is not supported yet"
-end
+gem 'execjs', '~> 2.4.0' # ~> 2.5.0 works only for Ruby > 2.0
 
-group :development, :test do
-  gem 'sqlite3'
+# Optional dependencies
+gem 'cancan'
+gem 'devise'
+gem 'draper'
+gem 'pundit'
 
-  gem 'rake',           '~> 0.9.2.2', :require => false
-  gem 'haml',           '~> 3.1.1', :require => false
-  gem 'yard'
-  gem 'rdiscount' # For yard
-  gem "sprockets"
-  gem 'rails-i18n' # Gives us default i18n for many languages
+# Utility gems used in both development & test environments
+gem 'rake', require: false
+gem 'parallel_tests'
+
+# Debugging
+gem 'pry'                  # Easily debug from your console with `binding.pry`
+
+group :development do
+  # Debugging
+  gem 'better_errors'      # Web UI to debug exceptions. Go to /__better_errors to access the latest one
+  gem 'binding_of_caller'  # Retrieve the binding of a method's caller in MRI Ruby >= 1.9.2
+
+  # Performance
+  gem 'rack-mini-profiler' # Inline app profiler. See ?pp=help for options.
+  gem 'flamegraph'         # Flamegraph visualiztion: ?pp=flamegraph
+
+  # Documentation
+  gem 'yard'               # Documentation generator
+  gem 'redcarpet'          # Markdown implementation (for yard)
 end
 
 group :test do
-  gem 'rspec-rails',    '~> 2.9.0'
-  gem 'cucumber-rails', '1.2.1', :require => false
-  gem 'capybara',       '1.1.2'
+  gem 'capybara'
+  gem 'simplecov', require: false # Test coverage generator. Go to /coverage/ after running tests
+  gem 'coveralls', require: false # Test coverage website. Go to https://coveralls.io
+  gem 'cucumber-rails', require: false
   gem 'database_cleaner'
-  gem 'shoulda-matchers', '1.0.0'
-  gem 'launchy'
-  gem 'jslint_on_rails',    '~> 1.0.6'
   gem 'guard-rspec'
-  gem "guard-coffeescript"
   gem 'jasmine'
+  gem 'jslint_on_rails'
+  gem 'launchy'
+  gem 'rails-i18n' # Provides default i18n for many languages
+  gem 'rspec'
+  gem 'rspec-rails', '~> 3.1.0'
+  gem 'i18n-spec'
+  gem 'shoulda-matchers'
+  gem 'sqlite3'
+  gem 'poltergeist'
 end

@@ -7,9 +7,9 @@ module ActiveAdmin
         config.add_filter(attribute, options)
       end
 
-      # For docs, please see ActiveAdmin::Filters::ResourceExtension#delete_filter
-      def remove_filter(attribute)
-        config.remove_filter(attribute)
+      # For docs, please see ActiveAdmin::Filters::ResourceExtension#remove_filter
+      def remove_filter(*attributes)
+        config.remove_filter(*attributes)
       end
 
       # For docs, please see ActiveAdmin::Filters::ResourceExtension#preserve_default_filters!

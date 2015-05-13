@@ -14,17 +14,66 @@ Built in, Active Admin has the following index renderers:
 All index pages also support scopes, filters, pagination, action items, and
 sidebar sections.
 
+## Multiple Index Pages
+
+Sometime you may want more than one index page for a resource to represent
+different views to the user. If multiple index pages exist, Active Admin will
+automatically build links at the top of the default index page. Including
+multiple views is simple and requires creating multiple index components in
+your resource.
+
+```ruby
+index do
+  id_column
+  column :image_title
+  actions
+end
+
+index as: :grid do |product|
+  link_to image_tag(product.image_path), admin_product_path(product)
+end
+```
+
+The first index component will be the default index page unless you indicate
+otherwise by setting `:default` to true.
+
+```ruby
+index do
+  column :image_title
+  actions
+end
+
+index as: :grid, default: true do |product|
+  link_to image_tag(product.image_path), admin_product_path(product)
+end
+```
+
+## Custom Index
+
+Active Admin does not limit the index page to be a table, block, blog or grid.
+If you've created your own [custom index](3-index-pages/custom-index.md) page it
+can be included by setting `:as` to the class of the index component you created.
+
+```ruby
+index as: ActiveAdmin::Views::IndexAsMyIdea do
+  column :image_title
+  actions
+end
+```
+
 ## Index Filters
 
 By default the index screen includes a "Filters" sidebar on the right hand side
 with a filter for each attribute of the registered model. You can customize the
 filters that are displayed as well as the type of widgets they use.
 
-To display a filter for an attribute, use the filter method
+To display a filter for an attribute, use the `filter` method
 
-    ActiveAdmin.register Post do
-      filter :title
-    end
+```ruby
+ActiveAdmin.register Post do
+  filter :title
+end
+```
 
 Out of the box, Active Admin supports the following filter types:
 
@@ -37,78 +86,180 @@ Out of the box, Active Admin supports the following filter types:
 * *:check_boxes* - A list of check boxes users can turn on and off to filter
 
 By default, Active Admin will pick the most relevant filter based on the
-attribute type. You can force the type by passing the :as option.
+attribute type. You can force the type by passing the `:as` option.
 
-    filter :author, :as => :check_boxes
+```ruby
+filter :author, as: :check_boxes
+```
 
-The :check_boxes and :select types accept options for the collection. By default
+The `:check_boxes` and `:select` types accept options for the collection. By default
 it attempts to create a collection based on an association. But you can pass in
 the collection as a proc to be called at render time.
 
-    # Will call available
-    filter :author, :as => :check_boxes, :collection => proc { Author.all }
+```ruby
+filter :author, as: :check_boxes, collection: proc { Author.all }
+```
 
 You can change the filter label by passing a label option:
 
-    filter :author, :label => 'Author'
+```ruby
+filter :author, label: 'Something else'
+```
 
 By default, Active Admin will try to use ActiveModel I18n to determine the label.
+
+You can also filter on more than one attribute of a model using the
+[Ransack search predicate syntax](https://github.com/activerecord-hackery/ransack/wiki/Basic-Searching). If using a custom search method, you will
+also need to specify the field type using `:as` and the label.
+
+```ruby
+filter :first_name_or_last_name_cont, as: :string, label: "Name"
+```
 
 Filters can also be disabled for a resource, a namespace or the entire
 application.
 
 To disable for a specific resource:
 
-    ActiveAdmin.register Post do
-      config.filters = false
-    end
+```ruby
+ActiveAdmin.register Post do
+  config.filters = false
+end
+```
 
 To disable for a namespace, in the initializer:
 
-    ActiveAdmin.setup do |config|
-      config.namespace :my_namespace do |my_namespace|
-        my_namespace.filters = false
-      end
-    end
+```ruby
+ActiveAdmin.setup do |config|
+  config.namespace :my_namespace do |my_namespace|
+    my_namespace.filters = false
+  end
+end
+```
 
 Or to disable for the entire application:
 
-    ActiveAdmin.setup do |config|
-      config.filters = false
-    end
+```ruby
+ActiveAdmin.setup do |config|
+  config.filters = false
+end
+```
 
 You can also add a filter and still preserve the default filters:
 
-    preserve_default_filters!
-    filter :author
+```ruby
+preserve_default_filters!
+filter :author
+```
+
+## Index Scopes
+
+You can define custom scopes for your index page. This will add a tab bar above
+the index table to quickly filter your collection on pre-defined scopes. There are
+a number of ways to define your scopes:
+
+```ruby
+scope :all, default: true
+
+# assumes the model has a scope called ':active'
+scope :active
+
+# renames model scope ':leaves' to ':subcategories'
+scope "Subcategories", :leaves
+
+# Dynamic scope name
+scope ->{ Date.today.strftime '%A' }, :published_today
+
+# custom scope not defined on the model
+scope("Inactive") { |scope| scope.where(active: false) }
+
+# conditionally show a custom controller scope
+scope "Published", if: proc { current_admin_user.can? :manage, Posts } do |posts|
+  posts.published
+end
+```
 
 ## Index default sort order
 
 You can define the default sort order for index pages:
 
-    ActiveAdmin.register Post do
-      config.sort_order = "name_asc"
-    end
+```ruby
+ActiveAdmin.register Post do
+  config.sort_order = 'name_asc'
+end
+```
 
 ## Index pagination
 
+You can set the number of records per page as default:
+
+```ruby
+ActiveAdmin.setup do |config|
+  config.default_per_page = 30
+end
+```
 
 You can set the number of records per page per resources:
 
-    ActiveAdmin.register Post do
-      config.per_page = 10
-    end
+```ruby
+ActiveAdmin.register Post do
+  config.per_page = 10
+end
+```
+
+You can change it per request / action too:
+
+```ruby
+controller do
+  before_filter :only => :index do
+    @per_page = 100
+  end
+end
+```
 
 You can also disable pagination:
 
-    ActiveAdmin.register Post do
-      config.paginate = false
-    end
+```ruby
+ActiveAdmin.register Post do
+  config.paginate = false
+end
+```
 
-## Disable CSV, XML and JSON export
+If you have a very large database, you might want to disable `SELECT COUNT(*)`
+queries caused by the pagination info at the bottom of the page:
 
-You can remove links to download CSV, XML and JSON exports:
+```ruby
+ActiveAdmin.register Post do
+  index pagination_total: false do
+    # ...
+  end
+end
+```
 
-    index :download_links => false do
-    end
+## Customizing Download Links
 
+You can easily remove or customize the download links you want displayed:
+
+```ruby
+# Per resource:
+ActiveAdmin.register Post do
+
+  index download_links: false
+  index download_links: [:pdf]
+  index download_links: proc{ current_user.can_view_download_links? }
+
+end
+
+# For the entire application:
+ActiveAdmin.setup do |config|
+
+  config.download_links = false
+  config.download_links = [:csv, :xml, :json, :pdf]
+  config.download_links = proc { current_user.can_view_download_links? }
+
+end
+```
+
+Note: you have to actually implement PDF rendering for your action, ActiveAdmin does not provide this feature. This setting just allows you to specify formats that you want to show up under the index collection.
+
+You'll need to use a PDF rendering library like PDFKit or WickedPDF to get the PDF generation you want.
